@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Türme von Hanoi</title>
+<style>
+  :root {
+    --bg: #fafaf8;
+    --ink: #1c1c1e;
+    --muted: #8a8a8e;
+    --rod: #dcdcd8;
+    --ok: rgba(40, 140, 90, 0.10);
+    --bad: rgba(200, 60, 60, 0.10);
+    --hue: 215;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161618;
+      --ink: #ececec;
+      --muted: #7c7c82;
+      --rod: #333337;
+      --ok: rgba(70, 190, 130, 0.12);
+      --bad: rgba(230, 90, 90, 0.12);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  main { width: 100%; max-width: 760px; }
+
+  h1 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    margin: 0 0 4px;
+  }
+
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 28px;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .stats { font-variant-numeric: tabular-nums; }
+  .stats b { color: var(--ink); font-weight: 500; }
+
+  .controls { display: flex; align-items: center; gap: 10px; }
+
+  select, button {
+    font: inherit;
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid var(--rod);
+    border-radius: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  select:hover, button:hover { border-color: var(--muted); }
+
+  /* Spielfeld */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    height: 340px;
+  }
+
+  .peg {
+    position: relative;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 4px;
+    padding-bottom: 4px;
+    border-bottom: 3px solid var(--ink);
+    transition: background 0.12s;
+    touch-action: none;
+  }
+  .peg::before {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 4px;
+    height: calc(100% - 16px);
+    transform: translateX(-50%);
+    background: var(--rod);
+    border-radius: 2px;
+  }
+  .peg.ok  { background: var(--ok); }
+  .peg.bad { background: var(--bad); }
+
+  .disc {
+    position: relative;
+    z-index: 1;
+    width: calc(var(--p) * 1%);
+    height: var(--dh, 28px);
+    border-radius: 999px;
+    background: hsl(var(--hue), 45%, var(--l));
+    touch-action: none;
+  }
+  .disc.top { cursor: grab; }
+  .disc.top:hover { filter: brightness(1.08); }
+  .disc.flying { z-index: 5; }
+
+  .disc.dragging {
+    position: fixed;
+    z-index: 10;
+    margin: 0;
+    cursor: grabbing;
+    pointer-events: none;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+  }
+
+  .labels {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin-top: 10px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    min-height: 1.2em;
+  }
+
+  .message {
+    margin-top: 22px;
+    min-height: 1.5em;
+    text-align: center;
+    font-size: 1rem;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .message.show { opacity: 1; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Türme von Hanoi</h1>
+  <div class="bar">
+    <div class="stats">Züge <b id="moves">0</b> &nbsp;·&nbsp; Minimum <b id="min">15</b></div>
+    <div class="controls">
+      <label for="count">Steine</label>
+      <select id="count" aria-label="Anzahl der Steine"></select>
+      <button id="restart" type="button">Neu starten</button>
+    </div>
+  </div>
+
+  <div class="board" id="board">
+    <div class="peg" data-i="0"></div>
+    <div class="peg" data-i="1"></div>
+    <div class="peg" data-i="2"></div>
+  </div>
+  <div class="labels"><span>Start</span><span></span><span>Ziel</span></div>
+
+  <div class="message" id="message" aria-live="polite"></div>
+</main>
+
+<script>
+(() => {
+  const board   = document.getElementById('board');
+  const pegEls  = [...board.querySelectorAll('.peg')];
+  const movesEl = document.getElementById('moves');
+  const minEl   = document.getElementById('min');
+  const msgEl   = document.getElementById('message');
+  const countEl = document.getElementById('count');
+  const restart = document.getElementById('restart');
+
+  const MIN_DISCS = 1, MAX_DISCS = 8;
+  const state = { n: 4, pegs: [[], [], []], moves: 0, won: false };
+  let drag = null;
+
+  for (let i = MIN_DISCS; i <= MAX_DISCS; i++) {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = i;
+    if (i === state.n) o.selected = true;
+    countEl.appendChild(o);
+  }
+
+  function newGame(n) {
+    state.n = n;
+    state.pegs = [[], [], []];
+    for (let s = n; s >= 1; s--) state.pegs[0].push(s); // unten = groß
+    state.moves = 0;
+    state.won = false;
+    msgEl.classList.remove('show');
+    render();
+  }
+
+  function render() {
+    const n = state.n;
+    const dh = Math.min(30, Math.floor(280 / n) - 4);
+
+    pegEls.forEach((el, i) => {
+      el.replaceChildren();
+      const stack = state.pegs[i];
+      stack.forEach((size, idx) => {
+        const d = document.createElement('div');
+        d.className = 'disc' + (idx === stack.length - 1 ? ' top' : '');
+        d.dataset.size = size;
+        const t = n > 1 ? (size - 1) / (n - 1) : 0.5; // 0 = kleinster, 1 = größter Stein
+        d.style.setProperty('--p', 30 + t * 62);
+        d.style.setProperty('--l', 34 + t * 38 + '%');
+        d.style.setProperty('--dh', dh + 'px');
+        el.appendChild(d);
+      });
+    });
+
+    movesEl.textContent = state.moves;
+    minEl.textContent = Math.pow(2, n) - 1;
+  }
+
+  const canPlace = (size, peg) => {
+    const s = state.pegs[peg];
+    return s.length === 0 || s[s.length - 1] > size;
+  };
+
+  function nearestPeg(x) {
+    let best = 0, bestDist = Infinity;
+    pegEls.forEach((el, i) => {
+      const r = el.getBoundingClientRect();
+      const dist = Math.abs(x - (r.left + r.width / 2));
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    });
+    return best;
+  }
+
+  function clearHighlights() {
+    pegEls.forEach(p => p.classList.remove('ok', 'bad'));
+  }
+
+  board.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || drag || state.won) return;
+    const d = e.target.closest('.disc.top');
+    if (!d || d.classList.contains('flying')) return;
+    e.preventDefault();
+
+    const r = d.getBoundingClientRect();
+    drag = {
+      el: d,
+      from: Number(d.parentElement.dataset.i),
+      size: Number(d.dataset.size),
+      ox: e.clientX - r.left,
+      oy: e.clientY - r.top
+    };
+    d.classList.add('dragging');
+    d.style.width  = r.width + 'px';
+    d.style.height = r.height + 'px';
+    d.style.left   = r.left + 'px';
+    d.style.top    = r.top + 'px';
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  });
+
+  function onMove(e) {
+    if (!drag) return;
+    drag.el.style.left = (e.clientX - drag.ox) + 'px';
+    drag.el.style.top  = (e.clientY - drag.oy) + 'px';
+
+    const target = nearestPeg(e.clientX);
+    clearHighlights();
+    if (target !== drag.from) {
+      pegEls[target].classList.add(canPlace(drag.size, target) ? 'ok' : 'bad');
+    }
+  }
+
+  function onUp(e) {
+    if (!drag) return;
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
+
+    const { el, from, size } = drag;
+    const lastRect = el.getBoundingClientRect();
+    const target = e.type === 'pointercancel' ? from : nearestPeg(e.clientX);
+    let dest = from;
+
+    if (target !== from && canPlace(size, target)) {
+      state.pegs[from].pop();
+      state.pegs[target].push(size);
+      state.moves++;
+      dest = target;
+    }
+
+    drag = null;
+    clearHighlights();
+    render();
+
+    // Sanft an die endgültige Position gleiten lassen (oder zurück)
+    const nd = pegEls[dest].lastElementChild;
+    const nr = nd.getBoundingClientRect();
+    nd.classList.add('flying');
+    nd.style.transition = 'none';
+    nd.style.transform = `translate(${lastRect.left - nr.left}px, ${lastRect.top - nr.top}px)`;
+    nd.getBoundingClientRect(); // Reflow erzwingen
+    nd.style.transition = 'transform 0.18s ease';
+    nd.style.transform = '';
+    setTimeout(() => {
+      nd.classList.remove('flying');
+      nd.style.transition = '';
+    }, 200);
+
+    if (dest !== from && state.pegs[2].length === state.n) win();
+  }
+
+  function win() {
+    state.won = true;
+    const min = Math.pow(2, state.n) - 1;
+    const zuege = state.moves === 1 ? '1 Zug' : `${state.moves} Zügen`;
+    msgEl.textContent = state.moves === min
+      ? `Geschafft in ${zuege} – perfekt!`
+      : `Geschafft in ${zuege}. Das Minimum wären ${min}.`;
+    msgEl.classList.add('show');
+  }
+
+  countEl.addEventListener('change', () => newGame(Number(countEl.value)));
+  restart.addEventListener('click', () => newGame(state.n));
+
+  newGame(state.n);
+})();
+</script>
+</body>
+</html>
