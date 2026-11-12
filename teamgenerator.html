@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teamgenerator</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --text: #1d2430;
+    --muted: #667085;
+    --border: #d9dde3;
+    --accent: #2f6fde;
+    --accent-hover: #2459b8;
+    --warn: #b54708;
+    --shadow: 0 1px 3px rgba(16, 24, 40, .08);
+    --g0: #2f6fde; --g1: #d1495b; --g2: #2a9d8f; --g3: #e9a03b;
+    --g4: #7b5ea7; --g5: #3d8b37; --g6: #c2577f; --g7: #4a7c9b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --panel: #1d2128; --text: #e6e8eb; --muted: #9aa3af;
+      --border: #333a45; --accent: #5b8ff0; --accent-hover: #7aa4f3; --warn: #f2a65a;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px; line-height: 1.4;
+  }
+  header { padding: 18px 24px 0; }
+  h1 { margin: 0; font-size: 1.5rem; }
+  .layout {
+    display: grid; grid-template-columns: minmax(280px, 380px) 1fr;
+    gap: 20px; padding: 24px; min-height: 100vh;
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px; box-shadow: var(--shadow);
+  }
+  .left { display: flex; flex-direction: column; gap: 14px; }
+  label { font-weight: 600; font-size: .95rem; }
+  textarea {
+    width: 100%; flex: 1; min-height: 320px; resize: vertical;
+    padding: 10px 12px; font: inherit; font-size: 1rem;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text);
+  }
+  select {
+    width: 100%; padding: 10px 12px; font: inherit; font-size: 1rem;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--panel); color: var(--text); cursor: pointer;
+  }
+  textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .hint { color: var(--muted); font-size: .85rem; margin-top: 4px; }
+  .warn { color: var(--warn); font-size: .85rem; min-height: 1em; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .stepper { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .stepper button {
+    width: 40px; border: 0; background: var(--bg); color: var(--text);
+    font-size: 1.2rem; cursor: pointer;
+  }
+  .stepper button:hover { background: var(--border); }
+  .stepper input {
+    width: 64px; text-align: center; border: 0; border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border); font: inherit; font-size: 1.1rem; padding: 8px 4px;
+    background: var(--panel); color: var(--text); -moz-appearance: textfield;
+  }
+  .stepper input::-webkit-outer-spin-button,
+  .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .primary {
+    width: 100%; padding: 12px; font: inherit; font-size: 1.05rem; font-weight: 600;
+    color: #fff; background: var(--accent); border: 0; border-radius: 8px; cursor: pointer;
+  }
+  .primary:hover { background: var(--accent-hover); }
+  .secondary {
+    padding: 8px 12px; font: inherit; font-size: .9rem; color: var(--text);
+    background: transparent; border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+  }
+  .secondary:hover { background: var(--bg); }
+  .right { display: flex; flex-direction: column; gap: 14px; }
+  .right-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .right-head h2 { margin: 0; font-size: 1.15rem; }
+  .groups {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    align-content: start;
+  }
+  .group {
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    background: var(--panel); animation: pop .25s ease-out both;
+  }
+  .group h3 {
+    margin: 0; padding: 8px 12px; font-size: 1rem; color: #fff;
+    display: flex; justify-content: space-between;
+  }
+  .group h3 span { opacity: .85; font-weight: 500; }
+  .group ul { list-style: none; margin: 0; padding: 8px 12px 10px; }
+  .group li { padding: 4px 0; font-size: 1.1rem; border-bottom: 1px dashed var(--border); }
+  .group li:last-child { border-bottom: 0; }
+  .empty {
+    color: var(--muted); text-align: center; padding: 60px 20px;
+    border: 2px dashed var(--border); border-radius: 10px;
+  }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; padding: 16px; }
+    header { padding: 16px 16px 0; }
+    textarea { min-height: 180px; }
+  }
+</style>
+</head>
+<body>
+<main class="layout">
+  <section class="panel left">
+    <select id="klasse" aria-label="Klasse">
+      <option value="">Klasse</option>
+    </select>
+
+    <div style="display:flex;flex-direction:column;flex:1">
+      <textarea id="names" spellcheck="false" placeholder="Namen" aria-label="Namen"></textarea>
+      <div class="row" style="justify-content:space-between">
+        <span class="hint" id="count">0</span>
+        <span class="warn" id="warn"></span>
+      </div>
+    </div>
+
+    <div class="row">
+      <label for="groupCount">Teams</label>
+      <div class="stepper">
+        <button type="button" id="minus" aria-label="Weniger Gruppen">−</button>
+        <input type="number" id="groupCount" min="1" max="50" value="4">
+        <button type="button" id="plus" aria-label="Mehr Gruppen">+</button>
+      </div>
+      <span class="hint" id="sizeInfo"></span>
+    </div>
+
+    <button class="primary" id="generate">Generieren</button>
+  </section>
+
+  <section class="panel right">
+    <div class="groups" id="groups"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:auto">
+      <button class="secondary" id="copy" hidden>Kopieren</button>
+    </div>
+  </section>
+</main>
+
+<script>
+  // ===== Klassen mit Default-Namen (hier anpassen) =====
+  // Format: "Klassenname": "Name1 Name2 Name3 ..."
+  const KLASSEN = {
+    "9f (M)": "Aleksandra Emilian Madita Gözde Vinzenz Julia Ananth Florian Valentin Stefan Adrian Jan Frederik Paul Olivia Daniil Myraa Patricia Jakob Ludwig Eva Max Vladimir",
+  };
+  // =====================================================
+
+  const $ = id => document.getElementById(id);
+  const namesEl = $('names'), countEl = $('groupCount'), groupsEl = $('groups');
+  let lastGroups = null;
+
+  function parseNames() {
+    return namesEl.value.split(/\s+/).map(s => s.trim()).filter(Boolean);
+  }
+
+  function getGroupCount() {
+    let n = parseInt(countEl.value, 10);
+    if (isNaN(n) || n < 1) n = 1;
+    if (n > 50) n = 50;
+    return n;
+  }
+
+  // Kryptografisch gute Zufallszahl in [0, max)
+  function randInt(max) {
+    const buf = new Uint32Array(1);
+    const limit = Math.floor(0x100000000 / max) * max;
+    let x;
+    do { crypto.getRandomValues(buf); x = buf[0]; } while (x >= limit);
+    return x % max;
+  }
+
+  // Fisher-Yates-Mischen
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = randInt(i + 1);
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function updateInfo() {
+    const names = parseNames();
+    const k = getGroupCount();
+    $('count').textContent = names.length;
+
+    const seen = new Set(), dups = new Set();
+    names.forEach(n => { const l = n.toLowerCase(); seen.has(l) ? dups.add(n) : seen.add(l); });
+    $('warn').textContent = dups.size ? 'Doppelt: ' + [...dups].join(', ') : '';
+
+    if (names.length && k <= names.length) {
+      const lo = Math.floor(names.length / k), hi = Math.ceil(names.length / k);
+      $('sizeInfo').textContent = lo === hi ? `à ${lo}` : `à ${lo}–${hi}`;
+    } else {
+      $('sizeInfo').textContent = '';
+    }
+  }
+
+  function generate() {
+    const names = parseNames();
+    if (!names.length) { namesEl.focus(); return; }
+    const k = Math.min(getGroupCount(), names.length);
+    const shuffled = shuffle(names);
+    const groups = Array.from({ length: k }, () => []);
+    // Zufällige Reihenfolge der Gruppen, damit nicht immer die ersten Gruppen größer sind
+    const order = shuffle([...Array(k).keys()]);
+    shuffled.forEach((name, i) => groups[order[i % k]].push(name));
+    lastGroups = groups;
+    render(groups);
+  }
+
+  function render(groups) {
+    groupsEl.innerHTML = '';
+    groups.forEach((g, i) => {
+      const card = document.createElement('div');
+      card.className = 'group';
+      card.style.animationDelay = (i * 40) + 'ms';
+      const h = document.createElement('h3');
+      h.style.background = `var(--g${i % 8})`;
+      h.textContent = `Team ${i + 1}`;
+      const ul = document.createElement('ul');
+      g.forEach(n => { const li = document.createElement('li'); li.textContent = n; ul.appendChild(li); });
+      card.append(h, ul);
+      groupsEl.appendChild(card);
+    });
+    $('copy').hidden = false;
+  }
+
+  function copyResult() {
+    if (!lastGroups) return;
+    const text = lastGroups.map((g, i) => `Team ${i + 1}: ${g.join(', ')}`).join('\n');
+    const done = () => { $('copy').textContent = 'Kopiert ✓'; setTimeout(() => $('copy').textContent = 'Kopieren', 1500); };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else fallback();
+    function fallback() {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      ta.remove();
+    }
+  }
+
+  $('minus').onclick = () => { countEl.value = Math.max(1, getGroupCount() - 1); updateInfo(); };
+  $('plus').onclick  = () => { countEl.value = Math.min(50, getGroupCount() + 1); updateInfo(); };
+  countEl.addEventListener('input', updateInfo);
+  countEl.addEventListener('change', () => { countEl.value = getGroupCount(); updateInfo(); });
+  namesEl.addEventListener('input', updateInfo);
+  namesEl.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) generate(); });
+  $('generate').onclick = generate;
+  $('copy').onclick = copyResult;
+
+  const klasseEl = $('klasse');
+  Object.keys(KLASSEN).forEach(k => klasseEl.add(new Option(k, k)));
+  if (!Object.keys(KLASSEN).length) klasseEl.hidden = true;
+  klasseEl.addEventListener('change', () => {
+    if (!klasseEl.value) return;
+    namesEl.value = KLASSEN[klasseEl.value].trim();
+    updateInfo();
+  });
+
+  updateInfo();
+</script>
+</body>
+</html>
